@@ -1,0 +1,26 @@
+{% extends "blog-base.html" %}
+
+{% block content %}
+<html>
+<head>
+	<title>HW3 Blog</title>
+</head>
+<body>
+	<form method="post" action="/blog/newpost">
+		<div>Subject</div>
+		<input type="text" name="subject" value={{subject}}>
+		<br/>
+		<br/>
+		<div>Content</div>
+		<textarea name="content">{{content}}</textarea>
+		<br/>
+		<br/>
+		<input type="submit"/>	
+		<br/>
+		<div name="error" style="color: red">{{error}}</div>
+	</form>
+	
+	
+</body>
+</html>
+{% endblock %}

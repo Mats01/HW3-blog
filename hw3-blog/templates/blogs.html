@@ -1,0 +1,27 @@
+{% extends "blog-base.html" %}
+
+{% block content %}
+<html>
+<head>
+	<title>HW3 Blog</title>
+</head>
+<body>
+	<br/>
+	<br/>
+	<a href="/blog/newpost">Post something</a>
+	<br/>
+	<br/>
+	{% for post in posts %}
+		<div class="post" style=' position: relative'>
+			<h3>{{post.subject}}</h3>
+			<pre>{{post.content}}</pre>
+			<div style=' position: absolute; right: 0px; bottom: 0px'>{{post.created.strftime("%b %d, %Y")}}</div> 
+		</div>
+		<br/>
+		<hr/>
+	{% endfor %}
+
+
+</body>
+</html>
+{% endblock %}

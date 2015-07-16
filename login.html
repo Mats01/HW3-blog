@@ -1,0 +1,21 @@
+<form action="/" method="post">
+	<b>Singup</b>
+	<br/>
+	Username
+	<input type="text" name="usernmae"/> 
+	<div style="color: red">%(username_error)s</div>
+	<br/>
+	Password
+	<input type="password" name="password"/> 
+	<div style="color: red">%(password_error)s</div>
+	<br/>
+	Verify password
+	<input type="password" name="verify"/> 
+	<div style="color: red">%(verification_error)s</div>
+	<br/>
+	Email (optional)
+	<input type="text" name="email"/> 
+	<div style="color: red">%(email_error)s</div>
+	<br/>
+	<input type="submit"/>
+</form>
