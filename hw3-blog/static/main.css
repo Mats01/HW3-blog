@@ -1,12 +1,12 @@
 body {
-    font-family: Helvetica, Arial, sans-serif;
-    font-size: 14px;
+    font-family: Arial;
+    font-size: 1em;
+	
 
     width: 800px;
     margin: 0 auto;
     padding: 10px;
     color: #333;
-	background-color: #DAFF91
 }
 textarea {
   width: 500px;
@@ -16,10 +16,57 @@ textarea {
 }
 .main-title {
     display: block;
-    color: #222;
+    color: #E60000;
     font-size: 40px;
     font-weight: bold;
     text-align: center;
     margin-bottom: 30px;
-    text-decoration: none;
+	text-decoration: none;
+}
+.presubmit {
+    position: relative;
+    overflow: hidden;
+	border: 1px solid #B20000;
+    border-radius: 3px;
+    background: linear-gradient(#E60000, #FF1919);
+    color: white;
+    padding: 5px 10px;
+    display: inline-block;
+    font-family: 'Trebuchet MS';
+    font-weight: bold;
+}
+.presubmit input[type="submit"] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    min-width: 100%;
+    min-height: 100%;
+    text-align: right;
+    filter: alpha(opacity=0);
+    opacity: 0;
+    outline: none;
+    display: block;
+    cursor: pointer;
+}
+.post-redirect {
+	text-decoration: none;
+	border: 1px solid #B20000;
+    border-radius: 3px;
+    background: linear-gradient(#E60000, #FF1919);
+    color: white;
+    padding: 5px 10px;
+    display: inline-block;
+    font-family: 'Trebuchet MS';
+    font-weight: bold;
+}
+.post-redirect a {
+	color: white;
+	font-family: 'Trebuchet MS';
+    font-weight: bold;
+	text-decoration: none;
+}
+.title {
+	color: #E60000;
+	font-weight: bold;
+	font-size: 1.25em;
 }
