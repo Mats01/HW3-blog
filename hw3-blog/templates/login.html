@@ -1,0 +1,29 @@
+{% extends 'blog-base.html' %}
+
+{% block content %}
+<html>
+<head>
+	<title>Log In</title>
+</head>
+<body>
+	<form method="post">
+	    <br/>
+	    <div class="title">Username</div>
+	    <input type="text" name="username" value={{username}}>
+	    <br/>
+	    <div class="title">Password</div>
+	    <input type="password" name="password"/>
+	    <br/>
+		<br/>
+		<span class="presubmit">
+			Sing Up<input type="submit"/>
+		</span>
+		<br/>
+		<div style="color: red">{{error}}</div>
+	</form>
+	<p>Don't have an account? <a href='/blog/signup'>Sign Up!</a></p>
+
+
+</body>
+</html>
+{% endblock %}
