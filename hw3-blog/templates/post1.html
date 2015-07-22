@@ -1,17 +1,12 @@
-<div class="post">
-  <div class="post-heading">
-    <div class="post-title">
-      {{p.subject}}
-
-    </div>
+<div class="">
+	{{p.subject}}
+</div>
 <!---    
     <div class="post-date" style='position: absolute; margin-right: 0px; margin-bottom: 0px'>
       {{p.created.strftime("%b %d, %Y")}}
     </div>
---->    
-  </div>
+--->
 
-  <pre class="post-content">
-    {{p._render_text | safe}}
-  </pre>
+<div class="content">
+	{{p._render_text | safe}}
 </div>

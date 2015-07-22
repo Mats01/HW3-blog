@@ -8,10 +8,17 @@
 <body>
 	<br/>
 	<br/>
-	<div class="post-redirect">
+	<br/>
+	<hr/>
+	<div style=' display: {{hidden}}; position: absolute; right: 12.5%; text-align: right; margin: 2px'>You're logged in as: <b>{{user}}</b> <br/>
+		<div class="post-redirect">
+			<a href="/blog/logout">Log Out</a>
+		</div>
+	</div>	
+	<div class="post-redirect" style=' display: {{lhidden}}'>
 		<a href="/blog/login">Log In</a>
 	</div>
-	<div class="post-redirect">
+	<div class="post-redirect" style=' display: {{lhidden}}'>
 		<a href="/blog/signup">Sign Up</a>
 	</div>
 	<div class="post-redirect" style=' display: {{hidden}}'>
@@ -19,11 +26,13 @@
 	</div>
 	<br/>
 	<br/>
+	<hr/>
+	<hr/>
 	{% for post in posts %}
 		<div class="post" style=' position: relative'>
 			<h3 class="title">{{post.subject}}</h3>
-			<pre class="content">{{post.content}}</pre>
-			<div style=' position: absolute; right: 0px; bottom: 0px'>{{post.created.strftime("%b %d, %Y")}}</div> 
+			<div class='content'>{{post.content}}</div>
+			<div style=' position: absolute; right: 0px; bottom: 0px; margin: 2px'>{{post.created.strftime("%b %d, %Y")}} <br/>Author: {{post.author}}</div> 
 		</div>
 		<br/>
 		<hr/>

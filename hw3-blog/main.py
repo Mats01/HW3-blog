@@ -24,6 +24,7 @@ import hashlib
 import hmac
 import random
 import string
+import time
 
 from google.appengine.ext import db
 
@@ -100,6 +101,7 @@ def valid_email(email):
 class BlogPost(db.Model):
     subject = db.StringProperty(required=True)
     content = db.TextProperty(required=True)
+    author = db.StringProperty()
     created = db.DateTimeProperty(auto_now_add=True)
 
     def render(self):
@@ -126,10 +128,10 @@ class Handler(webapp2.RequestHandler):
 
 
 class MainHandler(Handler):
-    def render_post(self, posts, hidden):
+    def render_post(self, posts, hidden, lhidden, user):
         posts = db.GqlQuery("SELECT * FROM BlogPost ORDER BY created DESC")
 
-        self.render('blogs.html', posts=posts, hidden=hidden)
+        self.render('blogs.html', posts=posts, hidden=hidden, lhidden=lhidden, user=user)
 
     def get(self):
         user_id = self.request.cookies.get('user_id')
@@ -137,9 +139,10 @@ class MainHandler(Handler):
             id = check_secure_val(user_id)
             key = db.Key.from_path('User', int(id))
             if key:
-                self.render_post("", "")
+                a = User.get_by_id(int(id))
+                self.render_post('', '', lhidden='none', user=str(a.username))
         else:
-            self.render_post(posts=None, hidden='none')
+            self.render_post(posts=None, hidden='none', lhidden='', user=None)
 
 
 class PostHandler(Handler):
@@ -162,7 +165,13 @@ class PostHandler(Handler):
         content = self.request.get('content')
 
         if subject and content:
-            p = BlogPost(parent=blog_key(), subject=subject, content=content)
+            user_id = self.request.cookies.get('user_id')
+            if user_id:
+                id = check_secure_val(user_id)
+                a = User.get_by_id(int(id))
+            else:
+                a_username = None
+            p = BlogPost(parent=blog_key(), subject=subject, content=content, author=a.username)
             p.put()
             self.redirect('/blog/%s' % str(p.key().id()))
         else:
@@ -266,7 +275,7 @@ class WelcomeHandler(Handler):
             key = db.Key.from_path('User', int(id))
             if key:
                 user = db.get(key)
-                self.write('Welcome, %s!' % user.username)
+                self.render('welcome.html', welcome='Welcome, %s!' % user.username)
         else:
             self.redirect('/blog/signup')
 
