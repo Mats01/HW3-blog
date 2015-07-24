@@ -25,6 +25,7 @@ import hmac
 import random
 import string
 import time
+import json
 
 from google.appengine.ext import db
 
@@ -108,6 +109,13 @@ class BlogPost(db.Model):
         self._render_text = self.content.replace('\n', '<br>')
         return render_str("post1.html", p=self)
 
+    def as_dict(self):
+        time_fmt = '%c'
+        d = {'subject': self.subject,
+             'content': self.content,
+             'created': self.created.strftime(time_fmt)}
+        return d
+
 
 class User(db.Model):
     username = db.StringProperty(required=True)
@@ -126,6 +134,11 @@ class Handler(webapp2.RequestHandler):
     def render(self, template, **kw):
         self.write(self.render_str(template, **kw))
 
+    def render_json(self, d):
+        json_txt = json.dumps(d)
+        self.response.headers['Content-Type'] = 'application/json; charset=UTF-8'
+        self.write(json_txt)
+
 
 class MainHandler(Handler):
     def render_post(self, posts, hidden, lhidden, user):
@@ -134,15 +147,25 @@ class MainHandler(Handler):
         self.render('blogs.html', posts=posts, hidden=hidden, lhidden=lhidden, user=user)
 
     def get(self):
+        posts = db.GqlQuery("SELECT * FROM BlogPost ORDER BY created DESC")
         user_id = self.request.cookies.get('user_id')
-        if user_id:
-            id = check_secure_val(user_id)
-            key = db.Key.from_path('User', int(id))
-            if key:
-                a = User.get_by_id(int(id))
-                self.render_post('', '', lhidden='none', user=str(a.username))
+
+        if self.request.url.endswith('.json'):
+            self.format = 'json'
         else:
-            self.render_post(posts=None, hidden='none', lhidden='', user=None)
+            self.format = 'html'
+
+        if self.format == 'html':
+            if user_id:
+                id = check_secure_val(user_id)
+                key = db.Key.from_path('User', int(id))
+                if key:
+                    a = User.get_by_id(int(id))
+                    self.render_post('', '', lhidden='none', user=str(a.username))
+            else:
+                self.render_post(posts=None, hidden='none', lhidden='', user=None)
+        else:
+            return self.render_json([p.as_dict() for p in posts])
 
 
 class PostHandler(Handler):
@@ -188,7 +211,15 @@ class PostPage(Handler):
             self.error(404)
             return
 
-        self.render("permalink.html", post=post)
+        if self.request.url.endswith('.json'):
+            self.format = 'json'
+        else:
+            self.format = 'html'
+
+        if self.format == 'html':
+            self.render("permalink.html", post = post)
+        else:
+            self.render_json(post.as_dict())
 
 
 class SingUpHandler(Handler):
@@ -315,7 +346,7 @@ class LogOutHandler(Handler):
 
 
 app = webapp2.WSGIApplication([
-    ('/blog', MainHandler), ('/blog/newpost', PostHandler), ('/blog/([0-9]+)', PostPage),
+    ('/blog/?(?:.json)?', MainHandler), ('/blog/newpost', PostHandler), ('/blog/([0-9]+)(?:.json)?', PostPage),
     ('/blog/signup', SingUpHandler), ('/blog/welcome', WelcomeHandler), ('/blog/login', LogInHandler),
     ('/blog/logout', LogOutHandler)
 ], debug=True)
