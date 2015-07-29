@@ -27,6 +27,7 @@ import string
 import time
 import json
 
+from google.appengine.api import memcache
 from google.appengine.ext import db
 
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
@@ -139,15 +140,27 @@ class Handler(webapp2.RequestHandler):
         self.response.headers['Content-Type'] = 'application/json; charset=UTF-8'
         self.write(json_txt)
 
+start_time = 0
+def front_content(update = False):
+    global start_time
+    key = 'front'
+    posts = memcache.get(key)
+    if posts is None or update:
+        start_time = time.time()
+        posts = BlogPost.all().order('-created')
+        posts = list(posts)
+        memcache.set(key, posts)
+    return posts
 
 class MainHandler(Handler):
-    def render_post(self, posts, hidden, lhidden, user):
-        posts = db.GqlQuery("SELECT * FROM BlogPost ORDER BY created DESC")
+    def render_post(self, posts, hidden, lhidden, user, quired):
+        #posts = db.GqlQuery("SELECT * FROM BlogPost ORDER BY created DESC")
+        posts = front_content()
 
-        self.render('blogs.html', posts=posts, hidden=hidden, lhidden=lhidden, user=user)
+        self.render('blogs.html', posts=posts, hidden=hidden, lhidden=lhidden, user=user, quired=quired)
 
     def get(self):
-        posts = db.GqlQuery("SELECT * FROM BlogPost ORDER BY created DESC")
+        posts = front_content()
         user_id = self.request.cookies.get('user_id')
 
         if self.request.url.endswith('.json'):
@@ -156,14 +169,15 @@ class MainHandler(Handler):
             self.format = 'html'
 
         if self.format == 'html':
+            quired = 'Queried %.1f seconds ago' % (time.time() - start_time)
             if user_id:
                 id = check_secure_val(user_id)
                 key = db.Key.from_path('User', int(id))
                 if key:
                     a = User.get_by_id(int(id))
-                    self.render_post('', '', lhidden='none', user=str(a.username))
+                    self.render_post('', '', lhidden='none', user=str(a.username), quired=quired)
             else:
-                self.render_post(posts=None, hidden='none', lhidden='', user=None)
+                self.render_post(posts=None, hidden='none', lhidden='', user=None, quired=quired)
         else:
             return self.render_json([p.as_dict() for p in posts])
 
@@ -196,16 +210,30 @@ class PostHandler(Handler):
                 a_username = None
             p = BlogPost(parent=blog_key(), subject=subject, content=content, author=a.username)
             p.put()
+            time.sleep(.1)
+            front_content(True)
+            time.sleep(.1)
             self.redirect('/blog/%s' % str(p.key().id()))
         else:
             error = 'You need to both write a title and post in order to blog!'
             self.render_error(subject, content, error)
 
+new_start_time = 0
+def newpost_cache(post_id):
+    global new_start_time
+    k = str(db.Key.from_path('BlogPost', int(post_id), parent=blog_key()))
+    post = memcache.get(k)
+    if post is None:
+        new_start_time = time.time()
+        key = db.Key.from_path('BlogPost', int(post_id), parent=blog_key())
+        post = db.get(key)
+        memcache.set(k, post)
+    return post
+
 
 class PostPage(Handler):
     def get(self, post_id):
-        key = db.Key.from_path('BlogPost', int(post_id), parent=blog_key())
-        post = db.get(key)
+        post = newpost_cache(post_id)
 
         if not post:
             self.error(404)
@@ -217,7 +245,8 @@ class PostPage(Handler):
             self.format = 'html'
 
         if self.format == 'html':
-            self.render("permalink.html", post = post)
+            queried = 'Queried %.1f seconds ago' % (time.time() - new_start_time)
+            self.render("permalink.html", post = post, queried=queried)
         else:
             self.render_json(post.as_dict())
 
@@ -343,10 +372,14 @@ class LogOutHandler(Handler):
         self.response.headers.add_header('Set-Cookie', 'user_id=; Path=/')
         self.redirect('/blog/signup')
 
+class FlushHandler(Handler):
+    def get(self):
+        memcache.flush_all()
+        self.redirect('/blog')
 
 
 app = webapp2.WSGIApplication([
     ('/blog/?(?:.json)?', MainHandler), ('/blog/newpost', PostHandler), ('/blog/([0-9]+)(?:.json)?', PostPage),
     ('/blog/signup', SingUpHandler), ('/blog/welcome', WelcomeHandler), ('/blog/login', LogInHandler),
-    ('/blog/logout', LogOutHandler)
+    ('/blog/logout', LogOutHandler), ('/blog/flush', FlushHandler)
 ], debug=True)

@@ -1,5 +1,10 @@
 {% extends "blog-base.html" %}
 
 {% block content %}
-  {{post.render() | safe}}
+	<div class="post" style=' position: relative'>
+			<h3 class="title">{{post.subject}}</h3>
+			<div class='content'>{{post.content}}</div>
+			<div style=' position: absolute; right: 0px; bottom: 0px; margin: 2px'>{{post.created.strftime("%b %d, %Y")}} <br/>Author: {{post.author}}</div> 
+		</div>
+	<div>{{queried}}</div>
 {% endblock %}
