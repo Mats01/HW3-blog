@@ -17,8 +17,10 @@
 import os
 import webapp2
 import jinja2
+import logging
+import time
 
-
+from google.appengine.api import memcache
 from google.appengine.ext import db
 
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
@@ -40,10 +42,19 @@ class Handler(webapp2.RequestHandler):
     def render(self, template, **kw):
         self.write(self.render_str(template, **kw))
 
+def arts_front(update = False):
+    key = 'front'
+    arts = memcache.get(key)
+    if arts is None or update:
+        logging.error("DB QUERY")
+        arts = db.GqlQuery("SELECT * FROM Art ORDER BY created DESC")
+        arts = list(arts)
+        memcache.set(key, arts)
+    return arts
 
 class MainHandler(Handler):
     def render_front(self, title="", art="", error=""):
-        arts = db.GqlQuery("SELECT * FROM Art ORDER BY created DESC")
+        arts = arts_front()
 
         self.render('front.html', title=title, art=art, error=error, arts=arts)
     def get(self):
@@ -56,6 +67,9 @@ class MainHandler(Handler):
         if title and art:
             a = Art(title = title, art = art)
             a.put()
+            time.sleep(.1)
+            arts_front(True)
+            time.sleep(.1)
 
             self.redirect("/")
         else:
