@@ -24,8 +24,12 @@ import hashlib
 import hmac
 import random
 import string
+import logging
+import time
+
 
 from google.appengine.ext import db
+from google.appengine.ext import ndb
 
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir), autoescape=True)
@@ -71,6 +75,7 @@ def render_str(template, **params):
     t = jinja_env.get_template(template)
     return t.render(params)
 
+
 USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
 
 
@@ -91,10 +96,17 @@ EMAIL_RE = re.compile(r"^[\S]+@[\S]+\.[\S]+$")
 def valid_email(email):
     return EMAIL_RE.match(email)
 
+
 class User(db.Model):
     username = db.StringProperty(required=True)
     password = db.StringProperty(required=True)
     email = db.EmailProperty(required=False)
+
+
+class Content(ndb.Model):
+    location = ndb.StringProperty(required=True)
+    content_html = ndb.TextProperty(required=True)
+
 
 class Handler(webapp2.RequestHandler):
     def write(self, *a, **kw):
@@ -104,20 +116,81 @@ class Handler(webapp2.RequestHandler):
         t = jinja_env.get_template(template)
         return t.render(params)
 
+    def render_edit(self, content, edit_content, content_hidden,
+                    hidden, error, hidden_lu, hidden_li, href):
+        self.render('content.html', content=content, edit_content=edit_content,
+                    content_hidden=content_hidden, hidden=hidden, error=error,
+                    hidden_lu=hidden_lu, hidden_li=hidden_li, href='/_edit' + href)
+
     def render(self, template, **kw):
         self.write(self.render_str(template, **kw))
 
-class MainHandler(Handler):
-    def get(self):
-        self.response.write('soon to be wiki')
-
-class NewHandler(Handler):
-    def get(self, location):
-        self.redirect('/_edit/%s' % location)
 
 class EditHandler(Handler):
     def get(self, location):
-        self.write(location)
+        user_id = self.request.cookies.get('user_id')
+        if not user_id:
+            self.redirect('/signup')
+        else:
+            q = Content.query(Content.location == location).get()
+            if q:
+                content = q.content_html
+            else:
+                content = ''
+            self.render_edit('', content, 'none', '', '', '', 'none', location)
+
+    def post(self, location):
+        user_id = self.request.cookies.get('user_id')
+        if not user_id:
+            self.redirect('/signup')
+        else:
+            content = self.request.get('content')
+            if content:
+                if location not in exsisting_urls:
+                    c = Content(location=location, content_html=str(content))
+                    c.put()
+                    if location not in exsisting_urls:
+                        exsisting_urls.append(str(location))
+                    time.sleep(.1)
+                else:
+                    q = Content.query(Content.location == location).get()
+                    q.content_html = content
+                    q.put()
+                    time.sleep(.1)
+                self.redirect(location)
+            else:
+                q = Content.query(Content.location == location).get()
+                if q:
+                    r_content = q.content_html
+                else:
+                    r_content = ''
+                self.render_edit('', r_content, 'none', '', 'You need to submit some content!', '', 'none', location)
+
+
+exsisting_urls = []
+
+
+class WikiHandler(Handler):
+    def get(self, url):
+        user_id = self.request.cookies.get('user_id')
+        if url in exsisting_urls:
+            q = Content.query(Content.location == url).get()
+            if q:
+                content = q.content_html
+            else:
+                content = ''
+            if user_id:
+                self.render_edit(content=content, edit_content='', content_hidden='',
+                                 hidden='none', error='', hidden_lu='', hidden_li='none', href=url)
+            else:
+                self.render_edit(content=content, edit_content='', content_hidden='',
+                                 hidden='none', error='', hidden_lu='none', hidden_li='', href=url)
+        else:
+            if user_id:
+                self.redirect('/_edit' + url)
+            else:
+                self.redirect('/login')
+
 
 class SignUpHandler(Handler):
     def re_render(self, username, username_error,
@@ -145,7 +218,7 @@ class SignUpHandler(Handler):
         users = db.GqlQuery("SELECT * FROM User")
         for i in users:
             if i.username == input_username:
-                username_exsists='That username already exsists!'
+                username_exsists = 'That username already exsists!'
         if self.request.get('email'):
             if not email:
                 check = True
@@ -193,9 +266,11 @@ class SignUpHandler(Handler):
                 self.response.headers.add_header('Set-Cookie', 'user_id=%s; Path=/' % new_cookie)
                 self.redirect('/welcome')
 
+
 class LogInHandler(Handler):
     def render_error(self, error):
         self.render('login.html', error=error)
+
     def get(self):
         self.render('login.html')
 
@@ -221,13 +296,18 @@ class LogInHandler(Handler):
             elif nr_users == nr_loops:
                 self.render_error('Invalid username or password!')
 
+
 class LogOutHandler(Handler):
     def get(self):
         self.response.headers.add_header('Set-Cookie', 'user_id=; Path=/')
         self.redirect('/signup')
 
-app = webapp2.WSGIApplication([
-    ('/', MainHandler), ('/signup', SignUpHandler), ('/login', LogInHandler),
-    ('/logout', LogOutHandler), ('/([a-zA-Z0-9_]+)', NewHandler),
-    ('/_edit/([a-zA-Z0-9_]+)', EditHandler)
-], debug=True)
+
+PAGE_RE = r'(/(?:[a-zA-Z0-9_-]+/?)*)'
+app = webapp2.WSGIApplication([('/signup', SignUpHandler),
+                               ('/login', LogInHandler),
+                               ('/logout', LogOutHandler),
+                               ('/_edit' + PAGE_RE, EditHandler),
+                               (PAGE_RE, WikiHandler),
+                               ],
+                              debug=True)

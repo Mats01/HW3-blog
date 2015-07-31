@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<a href={{href}} style= ' display: {{hidden_lu}}'>edit</a>|<a href='/logout' style= ' display: {{hidden_lu}}'>logout</a>
+<a href='/login' style= ' display: {{hidden_li}}'>login</a>
+<br/>
+<br/>
+<br/>
+<div style=' display: {{content_hidden}}'>{{content | safe}}</div>
+
+<div style=' display: {{hidden}}'>
+	<form method='post'>
+		<textarea name='content'>{{edit_content}}</textarea>
+		<input type='submit'/>	
+		<div style=' color: red'>{{error}}</div>	
+	</form>
+
+</div>
+
+
+
+{% endblock %}
