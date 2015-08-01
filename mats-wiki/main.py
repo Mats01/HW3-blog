@@ -106,6 +106,17 @@ class User(db.Model):
 class Content(ndb.Model):
     location = ndb.StringProperty(required=True)
     content_html = ndb.TextProperty(required=True)
+    created = ndb.DateTimeProperty(auto_now_add=True)
+    version = ndb.IntegerProperty(required=True)
+
+    @staticmethod
+    def parent_key(path):
+        return ndb.Key('/root' + path, 'pages')
+
+    @classmethod
+    def _get_by_path(cls, path):
+        q = Content.query(ancestor=cls.parent_key(path)).order(Content.content_html, -Content.created)
+        return q
 
 
 class Handler(webapp2.RequestHandler):
@@ -117,10 +128,10 @@ class Handler(webapp2.RequestHandler):
         return t.render(params)
 
     def render_edit(self, content, edit_content, content_hidden,
-                    hidden, error, hidden_lu, hidden_li, href):
+                    hidden, error, hidden_lu, hidden_li, href, username):
         self.render('content.html', content=content, edit_content=edit_content,
                     content_hidden=content_hidden, hidden=hidden, error=error,
-                    hidden_lu=hidden_lu, hidden_li=hidden_li, href='/_edit' + href)
+                    hidden_lu=hidden_lu, hidden_li=hidden_li, href=href, username=username)
 
     def render(self, template, **kw):
         self.write(self.render_str(template, **kw))
@@ -132,12 +143,16 @@ class EditHandler(Handler):
         if not user_id:
             self.redirect('/signup')
         else:
-            q = Content.query(Content.location == location).get()
+            q = Content.query(Content.location == location).order(-Content.version).get()
             if q:
                 content = q.content_html
             else:
                 content = ''
-            self.render_edit('', content, 'none', '', '', '', 'none', location)
+            id = check_secure_val(user_id)
+            key = db.Key.from_path('User', int(id))
+            if key:
+                a = User.get_by_id(int(id))
+            self.render_edit('', content, 'none', '', '', '', 'none', location, username=(a.username))
 
     def post(self, location):
         user_id = self.request.cookies.get('user_id')
@@ -146,52 +161,89 @@ class EditHandler(Handler):
         else:
             content = self.request.get('content')
             if content:
-                if location not in exsisting_urls:
-                    c = Content(location=location, content_html=str(content))
+                if not exsisting_urls(location):
+                    c = Content(location=location, content_html=str(content), version=1)
                     c.put()
-                    if location not in exsisting_urls:
-                        exsisting_urls.append(str(location))
                     time.sleep(.1)
                 else:
-                    q = Content.query(Content.location == location).get()
-                    q.content_html = content
-                    q.put()
+                    q = Content.query(Content.location == location).order(-Content.version).get()
+                    if q:
+                        ver = q.version + 1
+                    else:
+                        ver = 1
+                    c = Content(location=location, content_html=str(content), version=ver)
+                    c.put()
                     time.sleep(.1)
                 self.redirect(location)
             else:
-                q = Content.query(Content.location == location).get()
+                q = Content.query(Content.location == location).order(-Content.version).get()
                 if q:
                     r_content = q.content_html
                 else:
                     r_content = ''
-                self.render_edit('', r_content, 'none', '', 'You need to submit some content!', '', 'none', location)
+                id = check_secure_val(user_id)
+                key = db.Key.from_path('User', int(id))
+                if key:
+                    a = User.get_by_id(int(id))
+                self.render_edit('', r_content, 'none', '', 'You need to submit some content!', '', 'none', location, username=(a.username))
 
 
-exsisting_urls = []
+def exsisting_urls(location):
+    q = Content.query(Content.location == location).get()
+    return q
 
 
 class WikiHandler(Handler):
     def get(self, url):
         user_id = self.request.cookies.get('user_id')
-        if url in exsisting_urls:
-            q = Content.query(Content.location == url).get()
+        if exsisting_urls(url):
+            v = self.request.get('v')
+            q = None
+            if v:
+                if v.isdigit():
+                    v = int(v)
+                    q = Content.query(Content.location == url, Content.version == v).get()
+            else:
+                q = Content.query(Content.location == url).order(-Content.version).get()
             if q:
                 content = q.content_html
             else:
                 content = ''
             if user_id:
+                id = check_secure_val(user_id)
+                key = db.Key.from_path('User', int(id))
+                if key:
+                    a = User.get_by_id(int(id))
                 self.render_edit(content=content, edit_content='', content_hidden='',
-                                 hidden='none', error='', hidden_lu='', hidden_li='none', href=url)
+                                 hidden='none', error='', hidden_lu='', hidden_li='none', href=url, username=(a.username))
             else:
                 self.render_edit(content=content, edit_content='', content_hidden='',
-                                 hidden='none', error='', hidden_lu='none', hidden_li='', href=url)
+                                 hidden='none', error='', hidden_lu='none', hidden_li='', href=url, username='')
         else:
             if user_id:
                 self.redirect('/_edit' + url)
             else:
                 self.redirect('/login')
 
+class HistoryHandler(Handler):
+    def get(self, location):
+        q = Content.query()
+        q = q.filter(Content.location == location)
+        q = q.order(-Content.version)
+        posts = q.fetch()
+        self.render('history.html', posts=posts)
 
+'''
+        q = Content._get_by_path(location)
+        q.fetch(50)
+
+        posts = list(q)
+        if posts:
+            self.render('history.html', posts=posts)
+        else:
+            self.redirect('/_edit' + location)
+
+'''
 class SignUpHandler(Handler):
     def re_render(self, username, username_error,
                   username_exsists, password_error,
@@ -308,6 +360,7 @@ app = webapp2.WSGIApplication([('/signup', SignUpHandler),
                                ('/login', LogInHandler),
                                ('/logout', LogOutHandler),
                                ('/_edit' + PAGE_RE, EditHandler),
+                               ('/_history' + PAGE_RE, HistoryHandler),
                                (PAGE_RE, WikiHandler),
                                ],
                               debug=True)

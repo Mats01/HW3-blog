@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<a href={{href}} style= ' display: {{hidden_lu}}'>edit</a>|<a href='/logout' style= ' display: {{hidden_lu}}'>logout</a>
+<a href=/_edit{{href}} style= ' display: {{hidden_lu}}'>edit</a>|<a href=/_history{{href}}>history</a>|{{username}}<a href='/logout' style= ' display: {{hidden_lu}}'>(logout)</a>
 <a href='/login' style= ' display: {{hidden_li}}'>login</a>
 <br/>
 <br/>
@@ -11,6 +11,7 @@
 <div style=' display: {{hidden}}'>
 	<form method='post'>
 		<textarea name='content'>{{edit_content}}</textarea>
+		<input name='v' type='hidden' value={{version}}/>
 		<input type='submit'/>	
 		<div style=' color: red'>{{error}}</div>	
 	</form>

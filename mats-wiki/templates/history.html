@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+
+{% block content %}
+	{% for post in posts %}
+		<div>{{post.content_html}}</div><div>version:{{post.version}}</div> <a href={{post.location}}?v={{post.version}}>view</a>
+		<hr/>
+	{% endfor %}
+{% endblock %}
