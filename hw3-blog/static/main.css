@@ -3,7 +3,7 @@ body {
     font-size: 1em;
 	
 
-    width: 75%;
+    width: 85%;
     margin: 0 auto;
     padding: 10px;
     color: #333;
@@ -72,7 +72,8 @@ textarea {
 }
 .content{
 	display: block;
-	margin-right: 22.5%;
+	margin-right: 18%;
 	font-family: monospace;
 	white-space: pre-wrap;
+	word-wrap: break-word;
 }
