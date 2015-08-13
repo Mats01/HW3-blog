@@ -1,0 +1,23 @@
+<html>
+<head>
+	<link type="text/css" rel="stylesheet" href="/static/main.css" />
+	<title>Pomodoro Web</title>
+</head>
+<body>
+	<a href='/'><h1>Pomodoro</h1></a> <div>
+	
+		{% if user %}
+			You: {{user.username}}
+			|
+			<a href='/logout'>Logout</a>
+		{% else %}
+			you are not logged in!
+			| <a href='/login'>Log In</a> | <a href='/signup'>Sign Up</a>
+		{% endif %}
+	</div>
+	
+	{% block content %}
+	{% endblock %}
+
+</body>
+</html>
