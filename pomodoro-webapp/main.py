@@ -25,6 +25,7 @@ import hmac
 import random
 import string
 import time
+import datetime
 
 from google.appengine.ext import ndb
 
@@ -102,7 +103,7 @@ def valid_email(email):
 
 class User(ndb.Model):
     username = ndb.StringProperty(required=True)
-    password = ndb.StringProperty(required=True)
+    password_hash = ndb.StringProperty(required=True)
     email = ndb.StringProperty(required=True)
     joined = ndb.IntegerProperty(required=True)
     # time in seconds since 1970 (easiest way to calculate when
@@ -111,7 +112,7 @@ class User(ndb.Model):
 
 class Pomodoro(ndb.Model):
     duration = ndb.IntegerProperty(required=True)
-    task = ndb.StringProperty(required=True)
+    task = ndb.StringProperty()
     owner = ndb.StringProperty(required=True)
     created = ndb.StringProperty(required=True)
     # created will be a sting containing the date (easy to match
@@ -119,6 +120,7 @@ class Pomodoro(ndb.Model):
 
 
 class Settings(ndb.Model):
+    user = ndb.StringProperty(required=True)
     pomodoro_lenght = ndb.IntegerProperty(required=True)
     short_break = ndb.IntegerProperty(required=True)
     long_break = ndb.IntegerProperty(required=True)
@@ -143,11 +145,56 @@ class Handler(webapp2.RequestHandler):
             if val:
                 return User.get_by_id(int(val))
 
+    def get_settings(self):
+        u = self.user_in()
+        return Settings.query(Settings.user == str(u.key.id())).get()
+
+    def add_pomodoro(self, task):
+        date = datetime.datetime.now().date()
+        s = self.get_settings()
+        duration = s.pomodoro_lenght
+        user = self.user_in()
+        user_id = str(user.key.id())
+        created = str(date)
+        if not task:
+            task = 'Other'
+
+        p = Pomodoro(duration=duration, task=task, owner=user_id, created=created)
+        p.put()
+
 
 
 class MainHandler(Handler):
+    def pomodoros_today(self):
+        user = self.user_in()
+        user_id = str(user.key.id())
+        return Pomodoro.query(Pomodoro.owner == str(user_id))
+
     def get(self):
-        self.render('pomodoro.html')
+        user = self.user_in()
+        if user:
+            tasks = []
+            p = self.pomodoros_today()
+            pomodoros = list(p)
+            tasks_dict = {}
+            for i in pomodoros:
+                tasks.append(str(i.task))
+            for i in tasks:
+                if i not in tasks_dict:
+                    tasks_dict[i] = 1
+                else:
+                    tasks_dict[i] += 1
+            self.render('fake_pomodoro.html', user=user, pomodoros=tasks_dict)
+            #self.render('pomodoro.html', user=user)
+        else:
+            self.redirect('/new-user')
+
+    def post(self):
+        task = self.request.get('task')
+        self.add_pomodoro(task)
+        time.sleep(.1)
+        self.redirect('/')
+
 
 
 class LogInHandler(Handler):
@@ -168,14 +215,18 @@ class LogInHandler(Handler):
         for i in users:
             nr_loops = nr_loops + 1
             if i.email == input_email:
-                s_pw = i.password
+                s_pw = i.password_hash
                 s = s_pw.split('|')[1]
                 h = make_pw_hash(user_pw)
                 if valid_pw(user_pw, h):
-                    if make_pw_hash(user_pw, s) == i.password:
+                    if make_pw_hash(user_pw, s) == i.password_hash:
                         new_cookie = make_secure_val(str(i.key.id()))
                         self.response.headers.add_header('Set-Cookie', 'user_id=%s; Path=/' % new_cookie)
                         self.redirect('/')
+                    else:
+                        self.render_error('Invalid email or password!')
+                else:
+                    self.render_error('Invalid email or password!')
             elif nr_users == nr_loops:
                 self.render_error('Invalid email or password!')
 
@@ -246,19 +297,57 @@ class SignUpHandler(Handler):
             else:
                 if not input_email:
                     input_email = None
-                u = User(username=input_username, password=make_pw_hash(verify_password),
+                u = User(username=input_username, password_hash=make_pw_hash(verify_password),
                          email=input_email, joined=int(time.time()))
                 u.put()
+                user_id = str(u.key.id())
+                s = Settings(user=user_id, pomodoro_lenght=25, short_break=5, long_break=15, auto_start_new=True)
+                s.put()
                 new_cookie = make_secure_val(str(u.key.id()))
                 self.response.headers.add_header('Set-Cookie', 'user_id=%s; Path=/' % new_cookie)
                 self.redirect('/')
 
 class LogOutHandler(Handler):
     def get(self):
-        self.response.headers.add_header('Set-Cookie', 'user_id=; expires=Tue, 09 Nov 1999 00:00:00 GMT, Path=/')
+        self.response.headers.add_header('Set-Cookie', 'user_id=; expires=Tue, 11 Nov 1999 00:00:00 GMT, Path=/')
         #previos metod was to just clear the cookie, but by setting the
         #expiration date in the pasr the cookie gets compleatly delited
         self.redirect('/')
+
+class NewUserHandler(Handler):
+    def get(self):
+        if self.user_in():
+            self.redirect('/')
+        else:
+            self.render('new_user.html')
+
+class SettingsHandler(Handler):
+    def get(self):
+        u = self.user_in()
+        if u:
+            settings = self.get_settings()
+            self.render('settings.html', user=u, settings=settings)
+        else:
+            self.redirect('/new-user')
+
+    def post(self):
+        duration = self.request.get('duration')
+        short = self.request.get('short')
+        long = self.request.get('long')
+        start = self.request.get('start')
+
+        auto_start = False
+        if start:
+            auto_start = True
+        settings = self.get_settings()
+        settings.pomodoro_lenght = int(duration)
+        settings.short_break = int(short)
+        settings.long_break = int(long)
+        settings.auto_start_new = auto_start
+        settings.put()
+        time.sleep(.1)
+        self.redirect('/settings')
+
 
 
 
@@ -266,5 +355,7 @@ app = webapp2.WSGIApplication([
     ('/', MainHandler),
     ('/login', LogInHandler),
     ('/signup', SignUpHandler),
-    ('/logout', LogOutHandler)
+    ('/logout', LogOutHandler),
+    ('/new-user', NewUserHandler),
+    ('/settings', SettingsHandler)
 ], debug=True)

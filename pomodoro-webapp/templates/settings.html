@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<html>
+<head>
+	<title>Settings</title>
+</head>
+<body>
+	<h1>Settings</h1>
+	{% set checked = '' %}
+	{% if settings.auto_start_new %}
+		{% set checked = 'checked' %}
+	{% endif %}
+	<form method='post'>
+	<br/>
+	Pomodoro duration: <input type='number' name='duration' value='{{settings.pomodoro_lenght}}' style=' width: 3em'/>
+	<br/>
+	<br/>
+	Short break: <input type='number' name='short' value='{{settings.short_break}}' style=' width: 3em'/>
+	<br/>
+	<br/>
+	Long break: <input type='number' name='long' value='{{settings.long_break}}' style=' width: 3em'/>
+	<br/>
+	<br/>
+	Start new pomodoro automaticly: <input type="checkbox" name="start" value="start" {{checked}}> 
+	<br/>
+	<br/>
+	<input type='submit' value='Save'/>
+	</form>
+
+
+</body>
+</html>
+{% endblock %}
