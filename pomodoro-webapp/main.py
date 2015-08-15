@@ -26,7 +26,9 @@ import random
 import string
 import time
 import datetime
+import logging
 
+from google.appengine.api import memcache
 from google.appengine.ext import ndb
 
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
@@ -162,30 +164,60 @@ class Handler(webapp2.RequestHandler):
         p = Pomodoro(duration=duration, task=task, owner=user_id, created=created)
         p.put()
 
-
-
-class MainHandler(Handler):
     def pomodoros_today(self):
         user = self.user_in()
         user_id = str(user.key.id())
-        return Pomodoro.query(Pomodoro.owner == str(user_id))
+        date = datetime.datetime.now().date()
+        return Pomodoro.query(Pomodoro.owner == str(user_id), Pomodoro.created == str(date))
 
+    def make_tasks_dict(self):
+        tasks = []
+        p = self.pomodoros_today()
+        pomodoros = list(p)
+        tasks_dict = {}
+        for i in pomodoros:
+            tasks.append(str(i.task))
+        for i in tasks:
+            if i not in tasks_dict:
+                tasks_dict[i] = 1
+            else:
+                tasks_dict[i] += 1
+        return tasks_dict
+
+
+update = False
+
+
+class CacheClass(Handler):
+    def __init__(self, user, pomodoros, settings):
+        self.user = user
+        self.pomodoros = pomodoros
+        self.settings = settings
+
+
+def cache(user_id, pomodoros, settings, update=False):
+    key = user_id
+    user_dict = memcache.get(key)
+    if user_dict is None or update:
+        c = CacheClass(user_id, pomodoros, settings)
+        user_dict = {'pomodoros': c.pomodoros, 'settings': c.settings}
+        memcache.set(key, user_dict)
+    return user_dict
+
+
+class MainHandler(Handler):
     def get(self):
         user = self.user_in()
         if user:
-            tasks = []
-            p = self.pomodoros_today()
-            pomodoros = list(p)
-            tasks_dict = {}
-            for i in pomodoros:
-                tasks.append(str(i.task))
-            for i in tasks:
-                if i not in tasks_dict:
-                    tasks_dict[i] = 1
-                else:
-                    tasks_dict[i] += 1
+            user_id = str(user.key.id())
+            pomodoros = self.make_tasks_dict()
+            settings = self.get_settings()
+            global update
+            user_dict = cache(user_id, pomodoros, settings, update)
+            update = False
+            tasks_dict = user_dict['pomodoros']
             self.render('fake_pomodoro.html', user=user, pomodoros=tasks_dict)
-            #self.render('pomodoro.html', user=user)
+            # self.render('pomodoro.html', user=user)
         else:
             self.redirect('/new-user')
 
@@ -193,8 +225,15 @@ class MainHandler(Handler):
         task = self.request.get('task')
         self.add_pomodoro(task)
         time.sleep(.1)
+        user = self.user_in()
+        user_id = str(user.key.id())
+        pomodoros = self.get_settings()
+        settings = self.make_tasks_dict()
+        cache(user_id, pomodoros, settings)
+        global update
+        update = True
+        time.sleep(.1)
         self.redirect('/')
-
 
 
 class LogInHandler(Handler):
@@ -229,6 +268,7 @@ class LogInHandler(Handler):
                     self.render_error('Invalid email or password!')
             elif nr_users == nr_loops:
                 self.render_error('Invalid email or password!')
+
 
 class SignUpHandler(Handler):
     def re_render(self, username, username_error,
@@ -307,12 +347,14 @@ class SignUpHandler(Handler):
                 self.response.headers.add_header('Set-Cookie', 'user_id=%s; Path=/' % new_cookie)
                 self.redirect('/')
 
+
 class LogOutHandler(Handler):
     def get(self):
         self.response.headers.add_header('Set-Cookie', 'user_id=; expires=Tue, 11 Nov 1999 00:00:00 GMT, Path=/')
-        #previos metod was to just clear the cookie, but by setting the
-        #expiration date in the pasr the cookie gets compleatly delited
+        # previos metod was to just clear the cookie, but by setting the
+        # expiration date in the pasr the cookie gets compleatly delited
         self.redirect('/')
+
 
 class NewUserHandler(Handler):
     def get(self):
@@ -321,12 +363,19 @@ class NewUserHandler(Handler):
         else:
             self.render('new_user.html')
 
+
 class SettingsHandler(Handler):
     def get(self):
-        u = self.user_in()
-        if u:
+        user = self.user_in()
+        if user:
+            user_id = str(user.key.id())
+            pomodoros = self.make_tasks_dict()
             settings = self.get_settings()
-            self.render('settings.html', user=u, settings=settings)
+            global update
+            user_dict = cache(user_id, pomodoros, settings, update)
+            update = False
+            settings = user_dict['settings']
+            self.render('settings.html', user=user, settings=settings)
         else:
             self.redirect('/new-user')
 
@@ -345,10 +394,10 @@ class SettingsHandler(Handler):
         settings.long_break = int(long)
         settings.auto_start_new = auto_start
         settings.put()
+        global update
+        update = True
         time.sleep(.1)
         self.redirect('/settings')
-
-
 
 
 app = webapp2.WSGIApplication([
